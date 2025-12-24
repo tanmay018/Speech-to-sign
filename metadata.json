@@ -1,0 +1,8 @@
+{
+  "name": "Papaya",
+  "description": "A real-time accessibility tool that converts spoken words into sign language images and subtitles using browser-based speech recognition.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
