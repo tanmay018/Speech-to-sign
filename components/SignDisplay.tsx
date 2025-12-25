@@ -153,14 +153,16 @@ const SignDisplay: React.FC<SignDisplayProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-6 text-black">
-                <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-2 bg-white">
-                   <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
+              <div className="flex flex-col items-center gap-2 text-black">
+                <div className="w-28 h-28 flex items-center justify-center transition-transform hover:scale-105 duration-500">
+                   <img 
+                      src="https://raw.githubusercontent.com/tanmay018/Speech-to-sign/main/Gemini_Generated_Image_13btml13btml13bt-removebg-preview.png" 
+                      alt="Papaya Logo" 
+                      className="w-full h-full object-contain drop-shadow-2xl"
+                   />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xl font-bold text-black">Paced Translator</p>
+                  <p className="text-xl font-bold text-black">Papaya</p>
                   <p className="text-sm text-black opacity-60 max-w-xs mx-auto leading-relaxed">Each sign will appear for 1.5 seconds to ensure clear communication.</p>
                 </div>
               </div>
