@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 
 interface SubtitlesProps {
-  transcript: string;
+  transcript: string[];
   interim?: string;
   isListening: boolean;
   onStartListening: () => void;
@@ -34,17 +34,24 @@ const Subtitles: React.FC<SubtitlesProps> = ({
       </div>
       
       <div className="flex-1 overflow-y-auto p-5 scroll-smooth bg-[#f4f4f4]">
-        {transcript || interim ? (
-           <div className="space-y-2">
-             <p className="text-[#252525] text-base leading-relaxed font-medium font-sans">
-                {transcript}
-                {interim && (
-                  <span className="text-black opacity-90 ml-1 transition-opacity">
+        {transcript.length > 0 || interim ? (
+           <div className="space-y-4">
+             {transcript.map((line, index) => (
+               <p 
+                 key={index} 
+                 className="text-[#252525] text-base leading-relaxed font-medium font-sans animate-in fade-in slide-in-from-bottom-2 duration-300"
+               >
+                 {line}
+               </p>
+             ))}
+             {interim && (
+               <p className="text-[#252525] text-base leading-relaxed font-medium font-sans">
+                  <span className="text-black opacity-90 transition-opacity">
                     {interim}
                   </span>
-                )}
-                {interim && <span className="w-1.5 h-4 bg-[#EA580C] inline-block ml-1 align-middle animate-pulse rounded-full" />}
-             </p>
+                  <span className="w-1.5 h-4 bg-[#EA580C] inline-block ml-1 align-middle animate-pulse rounded-full" />
+               </p>
+             )}
            </div>
         ) : (
            <div className="h-full flex flex-col items-center justify-center text-black gap-3 mt-[-20px]">

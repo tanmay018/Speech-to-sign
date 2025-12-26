@@ -24,7 +24,8 @@ const SignDisplay: React.FC<SignDisplayProps> = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   
   // Use activeWord to derive userData so visual matches timing
-  const cleanActiveWord = activeWord.toLowerCase().trim();
+  // Clean punctuation to match normalized keys passed in userSigns (e.g. "Hello!" -> "hello")
+  const cleanActiveWord = activeWord.toLowerCase().replace(/[.,!?;:"()]/g, '').trim();
   const userData = userSigns[cleanActiveWord];
   const isVideo = (data: string | undefined | null) => typeof data === 'string' && data.startsWith('data:video');
 

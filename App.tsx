@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Header from './components/Header';
 import SignDisplay from './components/SignDisplay';
@@ -10,7 +10,7 @@ import { getAllSigns, saveSignToDB, deleteSignFromDB } from './utils/db';
 
 const App: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState<string[]>([]);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [displayWord, setDisplayWord] = useState('');
   const [showLibrary, setShowLibrary] = useState(false);
@@ -31,8 +31,24 @@ const App: React.FC = () => {
   // Local Sign Library State
   const [userSigns, setUserSigns] = useState<Record<string, string>>({});
   
+  // Derived state: Normalized map for matching (strips punctuation from keys)
+  // And a key map to retrieve the original styled text (e.g. "Hello!") from cleaned key ("hello")
+  const { normalizedSigns, keyMap } = useMemo(() => {
+    const signs: Record<string, string> = {};
+    const keys: Record<string, string> = {};
+    Object.entries(userSigns).forEach(([key, value]) => {
+      const cleanKey = key.toLowerCase().replace(/[.,!?;:"()]/g, '').trim();
+      if (cleanKey) {
+        signs[cleanKey] = value;
+        keys[cleanKey] = key;
+      }
+    });
+    return { normalizedSigns: signs, keyMap: keys };
+  }, [userSigns]);
+
   // Logic Refs
-  const userSignsRef = useRef<Record<string, string>>({});
+  const normalizedSignsRef = useRef<Record<string, string>>({});
+  const keyMapRef = useRef<Record<string, string>>({});
   const recognitionRef = useRef<any>(null);
   const isComponentMounted = useRef(true);
   
@@ -44,6 +60,12 @@ const App: React.FC = () => {
   // Promise resolver to control queue timing from the child component
   const signResolver = useRef<(() => void) | null>(null);
 
+  // Sync ref with normalized signs for use in callbacks
+  useEffect(() => {
+    normalizedSignsRef.current = normalizedSigns;
+    keyMapRef.current = keyMap;
+  }, [normalizedSigns, keyMap]);
+
   // Load signs from IndexedDB
   useEffect(() => {
     isComponentMounted.current = true;
@@ -53,7 +75,6 @@ const App: React.FC = () => {
         const signs = await getAllSigns();
         if (isComponentMounted.current) {
           setUserSigns(signs);
-          userSignsRef.current = signs;
         }
       } catch (err) {
         console.error("Failed to load signs from DB", err);
@@ -71,11 +92,15 @@ const App: React.FC = () => {
   }, []);
 
   const handleSaveSign = async (word: string, imageData: string) => {
+    // We do NOT strip punctuation here, we just trim and lowercase.
+    // Punctuation is ignored during matching via normalizedSigns.
     const cleanWord = word.toLowerCase().trim();
+    
+    if (!cleanWord) return;
+
     // Update State immediately for UI responsiveness
     const newSigns = { ...userSigns, [cleanWord]: imageData };
     setUserSigns(newSigns);
-    userSignsRef.current = newSigns;
     
     // Save to DB
     try {
@@ -90,7 +115,6 @@ const App: React.FC = () => {
     const newSigns = { ...userSigns };
     delete newSigns[word];
     setUserSigns(newSigns);
-    userSignsRef.current = newSigns;
     
     try {
       await deleteSignFromDB(word);
@@ -158,9 +182,18 @@ const App: React.FC = () => {
   }, [isReviewingMissing]);
 
   const queueCleanedWords = useCallback((cleanedText: string) => {
-    const words = cleanedText.toLowerCase().trim().split(/\s+/).filter(Boolean);
-    const library = userSignsRef.current;
-    const maxWindow = 3;
+    // Clean punctuation from speech transcript for matching
+    const words = cleanedText
+      .toLowerCase()
+      .replace(/[.,!?;:"()]/g, '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    // Use normalized map for matching so "hello" matches "Hello!"
+    const library = normalizedSignsRef.current;
+    const keyMapping = keyMapRef.current;
+    const maxWindow = 10; // Increased to 10 to support longer phrases
     let i = 0;
     
     // Hide review screen immediately if user starts talking again
@@ -176,7 +209,8 @@ const App: React.FC = () => {
       for (let windowSize = Math.min(maxWindow, words.length - i); windowSize >= 2; windowSize--) {
         const phrase = words.slice(i, i + windowSize).join(' ');
         if (library[phrase]) {
-          wordQueue.current.push(phrase);
+          // Push the ORIGINAL key (from DB) if available, otherwise the cleaned phrase
+          wordQueue.current.push(keyMapping[phrase] || phrase);
           i += windowSize;
           matched = true;
           break;
@@ -185,11 +219,13 @@ const App: React.FC = () => {
       // Single word
       if (!matched) {
         const word = words[i];
-        wordQueue.current.push(word);
         
-        // If it's missing, add to list
-        if (!library[word]) {
-          newMissing.push(word);
+        // Check if single word exists in library to use original casing/punctuation
+        if (library[word]) {
+             wordQueue.current.push(keyMapping[word] || word);
+        } else {
+             wordQueue.current.push(word);
+             newMissing.push(word);
         }
         
         i++;
@@ -245,7 +281,7 @@ const App: React.FC = () => {
             const rawFinal = result[0].transcript.trim();
             setInterimTranscript(''); 
             
-            setTranscript(prev => (prev + ' ' + rawFinal).trim());
+            setTranscript(prev => [...prev, rawFinal]);
             queueCleanedWords(rawFinal);
           } else {
             currentInterim += result[0].transcript;
@@ -299,7 +335,7 @@ const App: React.FC = () => {
   const startListening = () => setIsListening(true);
   const stopListening = () => {
     setIsListening(false);
-    setTranscript('');
+    setTranscript([]);
     setInterimTranscript('');
     setDisplayWord('');
     setIsReviewingMissing(false);
@@ -411,7 +447,8 @@ const App: React.FC = () => {
   const handleCloseLibrary = () => {
     setShowLibrary(false);
     if (libraryTargetWord) {
-       if (userSignsRef.current[libraryTargetWord.toLowerCase()]) {
+       // Check against normalized signs since that's what we match against
+       if (normalizedSignsRef.current[libraryTargetWord.toLowerCase().replace(/[.,!?;:"()]/g, '').trim()]) {
          const updated = missingWordsRef.current.filter(w => w !== libraryTargetWord);
          missingWordsRef.current = updated;
          setMissingWords(updated);
@@ -459,7 +496,7 @@ const App: React.FC = () => {
           ) : (
             <SignDisplay 
               word={displayWord} 
-              userSigns={userSigns} 
+              userSigns={normalizedSigns} 
               onRecordMissing={handleRecordMissing}
               isReviewing={isReviewingMissing}
               missingWords={missingWords}
@@ -485,7 +522,7 @@ const App: React.FC = () => {
         <div className="h-full flex flex-col bg-[#f4f4f4] overflow-hidden">
            <SignDisplay 
               word={displayWord} 
-              userSigns={userSigns} 
+              userSigns={normalizedSigns} 
               onRecordMissing={(word) => {
                 window.focus();
                 handleRecordMissing(word);
@@ -521,7 +558,7 @@ const App: React.FC = () => {
            <div className="flex-1 relative">
              <SignDisplay 
                 word={displayWord} 
-                userSigns={userSigns} 
+                userSigns={normalizedSigns} 
                 onRecordMissing={handleRecordMissing}
                 isReviewing={isReviewingMissing}
                 missingWords={missingWords}
