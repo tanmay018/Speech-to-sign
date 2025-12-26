@@ -28,7 +28,7 @@ const Subtitles: React.FC<SubtitlesProps> = ({
     <div className="h-full flex flex-col bg-[#f4f4f4]/80 backdrop-blur-md">
       <div className="p-4 border-b border-[#808080] bg-[#f4f4f4] shadow-sm z-10 shrink-0">
          <h3 className="text-xs font-bold text-black uppercase tracking-widest flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${interim ? 'bg-[#EA580C] animate-pulse' : 'bg-black'}`} />
+            <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-[#EA580C] animate-pulse' : 'bg-black'}`} />
             Live Transcript
          </h3>
       </div>
@@ -51,7 +51,7 @@ const Subtitles: React.FC<SubtitlesProps> = ({
               <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
               </div>
-              <span className="text-sm font-medium italic opacity-60">Listening for speech...</span>
+              <span className="text-sm font-medium italic opacity-60">Waiting for speech...</span>
            </div>
         )}
         <div ref={bottomRef} className="h-2" />

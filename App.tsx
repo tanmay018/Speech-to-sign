@@ -6,9 +6,7 @@ import SignDisplay from './components/SignDisplay';
 import Subtitles from './components/Subtitles';
 import LibraryModal from './components/LibraryModal';
 import { IWindow } from './types';
-
-const STORAGE_KEY = 'papaya_user_signs';
-const SIGN_DISPLAY_DURATION = 1500; 
+import { getAllSigns, saveSignToDB, deleteSignFromDB } from './utils/db';
 
 const App: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
@@ -40,24 +38,28 @@ const App: React.FC = () => {
   
   // Queue & Sequencing Refs
   const wordQueue = useRef<string[]>([]);
-  const missingWordsRef = useRef<string[]>([]); // Ref to keep track of missing words synchronously
+  const missingWordsRef = useRef<string[]>([]); 
   const isProcessingQueue = useRef(false);
+  
+  // Promise resolver to control queue timing from the child component
+  const signResolver = useRef<(() => void) | null>(null);
 
-  // Load signs
+  // Load signs from IndexedDB
   useEffect(() => {
     isComponentMounted.current = true;
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const initialSigns: Record<string, string> = {};
-    if (saved) {
+    
+    const loadSigns = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        Object.assign(initialSigns, parsed);
-      } catch (e) {
-        console.error("Failed to parse saved signs", e);
+        const signs = await getAllSigns();
+        if (isComponentMounted.current) {
+          setUserSigns(signs);
+          userSignsRef.current = signs;
+        }
+      } catch (err) {
+        console.error("Failed to load signs from DB", err);
       }
-    }
-    setUserSigns(initialSigns);
-    userSignsRef.current = initialSigns;
+    };
+    loadSigns();
     
     // Set initial PiP position to bottom right
     setPipPosition({ 
@@ -68,21 +70,33 @@ const App: React.FC = () => {
     return () => { isComponentMounted.current = false; };
   }, []);
 
-  const saveToStorage = (newSigns: Record<string, string>) => {
+  const handleSaveSign = async (word: string, imageData: string) => {
+    const cleanWord = word.toLowerCase().trim();
+    // Update State immediately for UI responsiveness
+    const newSigns = { ...userSigns, [cleanWord]: imageData };
     setUserSigns(newSigns);
     userSignsRef.current = newSigns;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSigns));
+    
+    // Save to DB
+    try {
+      await saveSignToDB(cleanWord, imageData);
+    } catch (e) {
+      console.error("Failed to save to DB", e);
+      alert("Failed to save sign to database. Storage might be full.");
+    }
   };
 
-  const handleSaveSign = (word: string, imageData: string) => {
-    const newSigns = { ...userSigns, [word.toLowerCase().trim()]: imageData };
-    saveToStorage(newSigns);
-  };
-
-  const handleDeleteSign = (word: string) => {
+  const handleDeleteSign = async (word: string) => {
     const newSigns = { ...userSigns };
     delete newSigns[word];
-    saveToStorage(newSigns);
+    setUserSigns(newSigns);
+    userSignsRef.current = newSigns;
+    
+    try {
+      await deleteSignFromDB(word);
+    } catch (e) {
+      console.error("Failed to delete from DB", e);
+    }
   };
 
   // Opens library specifically to record a missing word
@@ -99,6 +113,14 @@ const App: React.FC = () => {
     processQueue();
   };
 
+  // Callback passed to SignDisplay to signal when video ends or timer finishes
+  const handleSignComplete = useCallback(() => {
+    if (signResolver.current) {
+      signResolver.current();
+      signResolver.current = null;
+    }
+  }, []);
+
   const processQueue = useCallback(async () => {
     if (isProcessingQueue.current) return;
     
@@ -113,7 +135,12 @@ const App: React.FC = () => {
         const nextWord = wordQueue.current.shift();
         if (nextWord) {
           setDisplayWord(nextWord);
-          await new Promise(resolve => setTimeout(resolve, SIGN_DISPLAY_DURATION));
+          
+          // Wait for the SignDisplay component to resolve this promise
+          // This allows videos to play for full duration, and images to use fixed timer
+          await new Promise<void>(resolve => {
+            signResolver.current = resolve;
+          });
         }
       }
     }
@@ -253,6 +280,11 @@ const App: React.FC = () => {
       setMissingWords([]);
       setDisplayWord('');
       setIsReviewingMissing(false);
+      // Force release any pending promises if stop is clicked
+      if (signResolver.current) {
+         signResolver.current();
+         signResolver.current = null;
+      }
     }
 
     return () => {
@@ -432,6 +464,7 @@ const App: React.FC = () => {
               isReviewing={isReviewingMissing}
               missingWords={missingWords}
               onSkipReview={handleSkipReview}
+              onDisplayComplete={handleSignComplete}
             />
           )}
         </main>
@@ -460,6 +493,7 @@ const App: React.FC = () => {
               isReviewing={isReviewingMissing}
               missingWords={missingWords}
               onSkipReview={handleSkipReview}
+              onDisplayComplete={handleSignComplete}
             />
         </div>,
         pipWindow.document.body
@@ -492,6 +526,7 @@ const App: React.FC = () => {
                 isReviewing={isReviewingMissing}
                 missingWords={missingWords}
                 onSkipReview={handleSkipReview}
+                onDisplayComplete={handleSignComplete}
              />
            </div>
         </div>

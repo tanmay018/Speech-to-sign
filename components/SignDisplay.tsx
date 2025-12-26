@@ -8,6 +8,7 @@ interface SignDisplayProps {
   isReviewing?: boolean;
   missingWords?: string[];
   onSkipReview?: () => void;
+  onDisplayComplete?: () => void;
 }
 
 const SignDisplay: React.FC<SignDisplayProps> = ({ 
@@ -16,13 +17,16 @@ const SignDisplay: React.FC<SignDisplayProps> = ({
   onRecordMissing, 
   isReviewing = false, 
   missingWords = [],
-  onSkipReview 
+  onSkipReview,
+  onDisplayComplete
 }) => {
   const [activeWord, setActiveWord] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
   
-  const cleanWord = word.toLowerCase().trim();
-  const userData = userSigns[cleanWord];
+  // Use activeWord to derive userData so visual matches timing
+  const cleanActiveWord = activeWord.toLowerCase().trim();
+  const userData = userSigns[cleanActiveWord];
+  const isVideo = (data: string | undefined | null) => typeof data === 'string' && data.startsWith('data:video');
 
   // Logic to handle the "switch" between signs with a subtle fade
   useEffect(() => {
@@ -36,7 +40,20 @@ const SignDisplay: React.FC<SignDisplayProps> = ({
     }
   }, [word, activeWord]);
 
-  const isVideo = (data: string | undefined | null) => typeof data === 'string' && data.startsWith('data:video');
+  // Handle completion for images and fallback text
+  useEffect(() => {
+    // If it's a video, onEnded will handle it.
+    // If it's empty/reviewing, we don't complete.
+    if (!activeWord || isReviewing) return;
+
+    if (!isVideo(userData) && onDisplayComplete) {
+       // Fixed duration for images or text fallbacks
+       const timer = setTimeout(() => {
+          onDisplayComplete();
+       }, 1500);
+       return () => clearTimeout(timer);
+    }
+  }, [activeWord, userData, isReviewing, onDisplayComplete]);
 
   // RENDER: Review List Mode
   if (isReviewing && missingWords.length > 0) {
@@ -98,9 +115,10 @@ const SignDisplay: React.FC<SignDisplayProps> = ({
                   key={activeWord} // Remount on change
                   src={userData}
                   autoPlay
-                  loop
+                  // Removed loop to allow onEnded to fire and control queue timing
                   muted
                   playsInline
+                  onEnded={() => onDisplayComplete && onDisplayComplete()}
                   className="max-w-full max-h-full object-contain rounded-[2rem] shadow-2xl border border-[#808080] bg-white p-1.5 transition-transform duration-300 hover:scale-[1.01]"
                 />
               ) : (
@@ -156,14 +174,14 @@ const SignDisplay: React.FC<SignDisplayProps> = ({
               <div className="flex flex-col items-center gap-2 text-black">
                 <div className="w-28 h-28 flex items-center justify-center transition-transform hover:scale-105 duration-500">
                    <img 
-                      src="https://raw.githubusercontent.com/tanmay018/Speech-to-sign/main/Gemini_Generated_Image_13btml13btml13bt-removebg-preview.png" 
+                      src="https://github.com/tanmay018/Speech-to-sign/blob/main/logo.png?raw=true" 
                       alt="Papaya Logo" 
                       className="w-full h-full object-contain drop-shadow-2xl"
                    />
                 </div>
                 <div className="space-y-1">
                   <p className="text-xl font-bold text-black">Papaya</p>
-                  <p className="text-sm text-black opacity-60 max-w-xs mx-auto leading-relaxed">Each sign will appear for 1.5 seconds to ensure clear communication.</p>
+                  <p className="text-sm text-black opacity-60 max-w-xs mx-auto leading-relaxed">Making communication easier</p>
                 </div>
               </div>
             )}

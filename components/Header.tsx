@@ -16,7 +16,7 @@ const Header: React.FC<HeaderProps> = ({
     <div className="flex items-center justify-between p-4 bg-[#f4f4f4]/50 border-b border-[#808080] backdrop-blur-md z-30">
       <div className="flex items-center gap-3">
         <img 
-          src="https://raw.githubusercontent.com/tanmay018/Speech-to-sign/main/logo.png" 
+          src="https://github.com/tanmay018/Speech-to-sign/blob/main/logo.png?raw=true" 
           alt="Papaya Logo" 
           className="w-9 h-9 object-contain drop-shadow-sm hover:scale-105 transition-transform duration-300"
         />
